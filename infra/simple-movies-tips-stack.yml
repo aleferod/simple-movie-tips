@@ -94,13 +94,22 @@ Resources:
             RateMovieEvent:
               required:
               - id
-              - tittle
+              - title
+              - overview
+              - poster_path
+              - release_date
               - grade_evaluated
               type: object
               properties:
                 id:
                   type: string
-                tittle:
+                title:
+                  type: string
+                overview:
+                  type: string
+                poster_path:
+                  type: string
+                release_date:
                   type: string
                 grade_evaluated:
                   type: string

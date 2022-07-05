@@ -24,7 +24,10 @@ exports.handler = async (event, context, callback) => {
         TableName : 'rated-movie-table',
         Item: {
            id: message.id,
-           tittle: message.tittle,
+           title: message.title,
+           overview: message.overview,
+           release_date: message.release_date,
+           poster_path: message.poster_path,
            grade_evaluated:  message.grade_evaluated
         }
       }
