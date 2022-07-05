@@ -1,0 +1,284 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Simple Movies Tips Serverless Stack
+Resources:
+
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: "Simple Movie Tips Api Gateway"
+      Description: "Simple Movie Tips Api Gateway Integration"
+      FailOnWarnings: true
+      Body:
+        openapi: 3.0.0
+        info:
+          title: API Gateway 
+          description: This API handles a route to Simple Movie Tips Endpoints
+          contact:
+            email: alefe_rod@hotmail.com
+          version: 1.0.0
+        paths:
+          /rate-movie:
+            post:
+              summary: Rate Movie
+              description: "Pub rate movie event into SQS queue"
+              operationId: rateMovieEvent
+              requestBody:
+                description: The rated movie event to push into queue for processing
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/RateMovieEvent'
+              responses:
+                "200":
+                  description: Event post successfully handled and placed on queue
+                "400":
+                  description: Bad request
+                "500":
+                  description: Server Error
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt RateMovieLambdaRole.Arn
+                httpMethod: "POST"
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:sqs:path/000000000000/rate-movie.fifo"
+                responses:
+                  default:
+                    statusCode: "200"
+                requestParameters:
+                  integration.request.header.Content-Type: "'application/x-www-form-urlencoded'"
+                requestTemplates:
+                  application/json: "Action=SendMessage&MessageBody=$input.body&MessageGroupId=1"
+                passthroughBehavior: "never"
+                type: "aws"
+          /movies:
+            get:
+              summary: Get Movies 
+              description: "Get Movies From The Movie DB API "
+              operationId: movies
+              responses:
+                "200":
+                  description: Movies Successfully Obtained
+                "400":
+                  description: Bad request
+                "500":
+                  description: Server Error
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt GetMoviesLambdaIamRole.Arn
+                httpMethod: "GET"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetMoviesLambdaIntegration.Arn}/invocations'
+                responses:
+                  default:
+                    statusCode: "200"
+                type: "aws_proxy"
+          /best-movies-rated:
+            get:
+              summary: Get Best Movies Rated
+              description: "Get Best Movies Rated From Database "
+              operationId: bestMoviesRated
+              responses:
+                "200":
+                  description: Best Movies Rated Successfully Obtained
+                "400":
+                  description: Bad request
+                "500":
+                  description: Server Error
+              x-amazon-apigateway-integration:
+                credentials: !GetAtt GetBestMoviesRatedLambdaIamRole.Arn
+                httpMethod: "GET"
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetBestMoviesRatedLambdaIntegration.Arn}/invocations'
+                responses:
+                  default:
+                    statusCode: "200"
+                type: "aws_proxy"
+        components:
+          schemas:
+            RateMovieEvent:
+              required:
+              - id
+              - tittle
+              - grade_evaluated
+              type: object
+              properties:
+                id:
+                  type: string
+                tittle:
+                  type: string
+                grade_evaluated:
+                  type: string
+  
+  RateMovieQueue:
+    Properties:
+      ContentBasedDeduplication: true
+      DelaySeconds: 0
+      FifoQueue: true
+      MaximumMessageSize: 262144
+      MessageRetentionPeriod: 1209600
+      QueueName: rate-movie.fifo
+      ReceiveMessageWaitTimeSeconds: 10
+      VisibilityTimeout: 30
+    Type: AWS::SQS::Queue
+  PolicySQS:
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action: SQS:*
+            Effect: Allow
+            Principal: '*'
+            Resource: !GetAtt 'RateMovieQueue.Arn'
+            Sid: Sid1517269801413
+        Version: '2012-10-17'
+      Queues:
+        - !Ref 'RateMovieQueue'
+    Type: AWS::SQS::QueuePolicy
+
+  RateMovieLambdaLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/rate-movie-lambda'
+      RetentionInDays: 3
+
+  RateMovieLambdaRole:
+    Type: 'AWS::IAM::Role'
+    DependsOn:
+      - SimpleQueue
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub 'rate-movie-lambda-integration'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource: !GetAtt RateMovieQueue.Arn
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: '*'
+
+  RateMovieLambdaIntegration:
+    Type: 'AWS::Lambda::Function'
+    DependsOn:
+      - RateMovieLambdaRole
+      - RateMovieLambdaLogGroup
+    Properties:
+      Code:
+        S3Bucket: rate-movie-lambda-integration-bucket
+        S3Key: RateMovieLambdaFunction
+      Description: AWS Lambda function
+      FunctionName: 'rate-movie-lambda-integration'
+      Handler: index.handler
+      MemorySize: 256
+      Role: !GetAtt RateMovieLambdaRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 60
+
+  WsEgressLambdaSourceMapping:
+    Type: 'AWS::Lambda::EventSourceMapping'
+    DependsOn:
+      - RateMovieQueue
+      - RateMovieLambdaIntegration
+    Properties:
+      BatchSize: 5
+      Enabled: true
+      EventSourceArn: !GetAtt RateMovieQueue.Arn
+      FunctionName: !GetAtt RateMovieLambdaIntegration.Arn
+
+  RatedMovieTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "id"
+          AttributeType: "S"
+        -
+          AttributeName: "grade_evaluated"
+          AttributeType: "N"
+
+      KeySchema: 
+        - 
+          AttributeName: "id"
+          KeyType: "HASH"
+        -  
+          AttributeName: "grade_evaluated"
+          KeyType: "RANGE"
+
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "1"
+        WriteCapacityUnits: "1"
+      TableName: "rated-movie-table"
+
+
+  GetMoviesLambdaIntegration:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: get-movies-lambda-integration-bucket
+        S3Key: GetMoviesLambdaFunction
+      Description: Get Movies Function Integration
+      FunctionName: 'get-movies-lambda-integration'
+      Handler: index.handler
+      MemorySize: 256
+      Role: !GetAtt GetMoviesLambdaIamRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 60
+
+  GetMoviesLambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+
+
+  GetBestMoviesRatedLambdaIntegration:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: get-best-movies-rated-lambda-integration-bucket
+        S3Key: GetBestMoviesRatedLambdaFunction
+      Description: Get Best Movies Rated
+      FunctionName: 'get-best-movies-rated-lambda-integration'
+      Handler: index.handler
+      MemorySize: 256
+      Role: !GetAtt GetBestMoviesRatedLambdaIamRole.Arn
+      Runtime: nodejs8.10
+      Timeout: 60
+
+  GetBestMoviesRatedLambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
