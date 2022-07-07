@@ -217,17 +217,10 @@ Resources:
         - 
           AttributeName: "id"
           AttributeType: "S"
-        -
-          AttributeName: "grade_evaluated"
-          AttributeType: "N"
-
       KeySchema: 
         - 
           AttributeName: "id"
           KeyType: "HASH"
-        -  
-          AttributeName: "grade_evaluated"
-          KeyType: "RANGE"
 
       ProvisionedThroughput: 
         ReadCapacityUnits: "1"
