@@ -32,8 +32,14 @@ async function getItems() {
 exports.handler = async (event, context, callback) => {
   try {
    
+    var id = 0
     var items = []
     var itemGradeEvaluated = 0
+
+    event.Records.forEach(async record => {
+      var message = JSON.parse(record.body);
+         id = message.id
+    })
 
     await getItems().then(data => {
       console.log(JSON.stringify(data) )
@@ -43,7 +49,9 @@ exports.handler = async (event, context, callback) => {
    })
 
    items.forEach(item => {
-    itemGradeEvaluated = item.grade_evaluated
+    if(item.id == id){
+      itemGradeEvaluated = item.grade_evaluated
+    }
    })
 
 
