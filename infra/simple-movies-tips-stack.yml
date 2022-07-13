@@ -26,6 +26,7 @@ Resources:
               requestBody:
                 description: The rated movie event to push into queue for processing
                 content:
+                  charset: utf-8
                   application/json:
                     schema:
                       $ref: '#/components/schemas/RateMovieEvent'
