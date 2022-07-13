@@ -1,7 +1,7 @@
 const https = require('https');
 
 function getRequest() {
-  const url = 'https://api.themoviedb.org/3/movie/popular?api_key=edac97aabe9e5bc96b11219190aab292&language=pt-BR&page=1';
+  const url = 'https://api.themoviedb.org/3/movie/popular?api_key=edac97aabe9e5bc96b11219190aab292&language=en-US';
 
   return new Promise((resolve, reject) => {
     const req = https.get(url, res => {

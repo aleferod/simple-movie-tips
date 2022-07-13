@@ -28,7 +28,6 @@ async function getItems() {
   }
 }
 
-
 exports.handler = async (event, context, callback) => {
   try {
    
@@ -42,7 +41,6 @@ exports.handler = async (event, context, callback) => {
     })
 
     await getItems().then(data => {
-      console.log(JSON.stringify(data) )
       items = data.Items
     }).catch(error => {
     console.error(error)
@@ -62,7 +60,7 @@ exports.handler = async (event, context, callback) => {
         Item: {
            id: message.id,
            title: message.title,
-           overview: message.overview,
+           overview: message.overview, 
            release_date: message.release_date,
            poster_path: message.poster_path,
            grade_evaluated: (+itemGradeEvaluated) + (+message.grade_evaluated)
