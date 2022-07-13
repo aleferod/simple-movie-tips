@@ -9,7 +9,6 @@ async function getBestMoviesRated() {
     let params = { TableName: 'rated-movie-table' };
     let data = await dynamodb.scan(params).promise();
     data.Items.sort((a, b) => b.grade_evaluated - a.grade_evaluated);
-    data.Items.sort((a, b) => a.title.localeCompare(b.title))
     return data
   } catch (err) {
     return err;
