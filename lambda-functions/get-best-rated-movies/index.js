@@ -20,7 +20,7 @@ exports.handler = async event => {
     const data = await getBestMoviesRated();
     return {
       statusCode: 200,
-      headers: {'Content-Type': 'application/json'},
+      headers: {'Content-Type': 'application/json;charset=UTF-8'},
       body: JSON.stringify(data),
     };
   } catch (error) {
